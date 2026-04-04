@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>目录结构树生成器</title>
+    <link rel="stylesheet" href="/css/default.min.css">
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="icon" type="image/png" href="/icons/appIcon.png">
+</head>
+<body>
+    <div class="container">
+        <main>
+            <!-- 上面两大块 左选择区 + 右配置区 -->
+            <div class="top-section">
+                <!-- 左：文件夹选择区 -->
+                <div class="left-panel">
+                    <div class="file-input-area" id="dropArea">
+                        <p id="dropHint">将文件夹拖放到此处，或点击选择文件夹</p>
+                        <div id="directoryDisplay">未选择目录</div>
+                        <input type="file" id="directoryInput" webkitdirectory directory style="display: none;">
+                    </div>
+                </div>
+                
+                <!-- 右：配置选项区 -->
+                <div class="right-panel">
+                    <div class="options">
+                        <div class="option-group" >
+                            <div class="form-group">
+                                <label for="rootName">根目录显示名称:</label>
+                                <input type="text" id="rootName" placeholder="默认使用选择的文件夹名称">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="ignorePatterns">忽略的文件或目录（每行一个）:</label>
+                                <textarea id="ignorePatterns">\.git
+node_modules
+\.DS_Store
+__pycache__
+\.vscode</textarea>
+                            </div>
+                        </div>
+                        
+                        <div class="option-group">
+                            <div class="form-group">
+                                <label for="commentsArea">文件/目录注释（格式：路径 # 注释）:</label>
+                                <textarea id="commentsArea" placeholder="例如:
+src # 源代码目录
+src/components # 组件目录"></textarea>
+                            </div>
+                            
+                            <div class="form-group" style="height: 40px;">
+                                <div class="checkbox-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="includeEmpty" checked>
+                                        <span>包含空目录</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="form-group" style="height: 40px;">
+                                <div class="checkbox-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="directoriesOnly">
+                                        <span>只读取目录（不包含文件）</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="form-group" style="height: 40px;">
+                                <div class="inline-form-control">
+                                    <label for="maxDepth">目录层级深度限制:</label>
+                                    <div class="number-input-container">
+                                        <input type="number" id="maxDepth" min="1" max="10" value="10">
+                                        <span class="input-hint">（1-10级）</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <button class="btn" id="generateBtn" disabled>生成目录结构</button>
+                        </div>
+                    </div>
+                    
+                    
+                </div>
+            </div>
+            
+            <div class="bottom-section">
+                <div class="preview-container">
+                    <button id="copyBtn" class="copy-btn" title="拷贝到剪贴板">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path d="M480 400L288 400C279.2 400 272 392.8 272 384L272 128C272 119.2 279.2 112 288 112L421.5 112C425.7 112 429.8 113.7 432.8 116.7L491.3 175.2C494.3 178.2 496 182.3 496 186.5L496 384C496 392.8 488.8 400 480 400zM288 448L480 448C515.3 448 544 419.3 544 384L544 186.5C544 169.5 537.3 153.2 525.3 141.2L466.7 82.7C454.7 70.7 438.5 64 421.5 64L288 64C252.7 64 224 92.7 224 128L224 384C224 419.3 252.7 448 288 448zM160 192C124.7 192 96 220.7 96 256L96 512C96 547.3 124.7 576 160 576L352 576C387.3 576 416 547.3 416 512L416 496L368 496L368 512C368 520.8 360.8 528 352 528L160 528C151.2 528 144 520.8 144 512L144 256C144 247.2 151.2 240 160 240L176 240L176 192L160 192z"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path d="M530.8 134.1C545.1 144.5 548.3 164.5 537.9 178.8L281.9 530.8C276.4 538.4 267.9 543.1 258.5 543.9C249.1 544.7 240 541.2 233.4 534.6L105.4 406.6C92.9 394.1 92.9 373.8 105.4 361.3C117.9 348.8 138.2 348.8 150.7 361.3L252.2 462.8L486.2 141.1C496.6 126.8 516.6 123.6 530.9 134z"/></svg>
+                    </button>
+                    <pre id="preview">目录结构将显示在这里...</pre>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/js/neutralino.js"></script>
+    <script src="/js/script.js"></script>
+</body>
+</html>
