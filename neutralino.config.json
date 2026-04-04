@@ -1,0 +1,78 @@
+{
+  "$schema": "https://raw.githubusercontent.com/neutralinojs/neutralinojs/main/schemas/neutralino.config.schema.json",
+  "applicationId": "com.hcyhub.dirtreegen",
+  "version": "1.0.0",
+  "defaultMode": "window",
+  "port": 0,
+  "documentRoot": "resources/",
+  "url": "/",
+  "enableServer": true,
+  "enableNativeAPI": true,
+  "tokenSecurity": "one-time",
+  "applicationName": "Dir Tree Gen",
+  "author": "Ethaniel @ HcyHub",
+  "description": "优雅的目录结构树生成工具",
+  "copyright": "Copyright © 2026 Ethaniel. All rights reserved.",
+  "applicationIcon": "resources/icons/appIcon.png",
+  "logging": {
+    "enabled": false,
+    "writeToLogFile": false
+  },
+  "nativeAllowList": [
+    "app.*",
+    "os.*",
+    "filesystem.*"
+  ],
+  "globalVariables": {
+  },
+  "modes": {
+    "window": {
+      "title": "目录结构树生成器",
+      "width": 1600,
+      "height": 1000,
+      "minWidth": 610,
+      "minHeight": 400,
+      "center": true,
+      "fullScreen": false,
+      "alwaysOnTop": false,
+      "icon": "resources/icons/appIcon.png",
+      "enableInspector": false,
+      "borderless": false,
+      "maximize": false,
+      "hidden": false,
+      "resizable": true,
+      "exitProcessOnClose": true
+    },
+    "browser": {
+      "globalVariables": {
+      },
+      "nativeBlockList": [
+        "filesystem.*"
+      ]
+    },
+    "cloud": {
+      "url": "/resources/#cloud",
+      "nativeAllowList": [
+        "app.*",
+        "filesystem.*"
+      ]
+    },
+    "chrome": {
+      "width": 800,
+      "height": 500,
+      "args": "--user-agent=\"Neutralinojs chrome mode\"",
+      "nativeBlockList": [
+        "filesystem.*",
+        "os.*"
+      ]
+    }
+  },
+  "cli": {
+    "binaryName": "dir-tree-gen",
+    "resourcesPath": "resources/",
+    "extensionsPath": "extensions/",
+    "clientLibrary": "resources/js/neutralino.js",
+    "binaryVersion": "6.7.0",
+    "clientVersion": "6.7.0"
+  }
+}

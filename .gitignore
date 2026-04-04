@@ -1,0 +1,6 @@
+.lite_workspace.lua
+/dist
+/bin/*
+/.tmp/*
+.storage
+*.log
