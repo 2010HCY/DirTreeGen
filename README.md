@@ -37,9 +37,35 @@
 
 ## 运行与打包
 
+**1. 安装 Neutralinojs CLI (如果你还没安装)**
+
 ```bash
-neu run
+npm install -g @neutralinojs/neu
+```
+
+**2. 初始化**
+
+```bash
+git clone https://github.com/2010HCY/DirTreeGen.git
+cd DirTreeGen
+neu update
+```
+
+> 执行 `neu update` 后，CLI 会自动创建 `bin/` 目录并下载各平台的运行时程序（`neutralino-win_x64.exe`, `neutralino-linux_x64`, `neutralino-mac_x64` 等）。
+
+**3. 构建**
+
+
+```
 neu build
 ```
 
-若需要启用开发者工具将 `enableInspector` 设置为 `true` 即可。
+构建成品可以在`dist/dir-tree-gen`下找到。
+
+若需要启用开发者工具将`neutralino.config.json` 中的`enableInspector` 设置为 `true` 即可。
+
+
+
+Blog地址：[文件目录树生成器 | 静水深流](https://hcyhub.com/编程/文件目录树生成器)
+
+下载地址：[Releases · 2010HCY/DirTreeGen](https://github.com/2010HCY/DirTreeGen/releases)
