@@ -17,6 +17,30 @@ let folderEntries = null;
 let copyFeedbackTimer = null;
 let neutralinoReady = false;
 let neutralinoInitPromise = Promise.resolve();
+let scanProgress = {
+    count: 0,
+    displayCount: 0,
+    isScanning: false,
+    animationFrameId: null
+};
+
+// 追踪当前的配置项
+let currentConfig = {
+    includeEmpty: false,
+    directoriesOnly: false,
+    maxDepth: 10,
+    ignorePatterns: ''
+};
+
+// 追踪影响扫描的配置
+let scanConfig = {
+    directoriesOnly: false,
+    maxDepth: 10,
+    ignorePatterns: ''
+};
+
+// 上次扫描时应用的配置
+let lastScanConfig = { ...scanConfig };
 
 initNeutralinoBridge();
 
@@ -54,6 +78,54 @@ function hasNeutralinoFolderDialogApi() {
         && typeof Neutralino.os.showFolderDialog === 'function'
         && typeof Neutralino.filesystem.readDirectory === 'function';
 }
+
+function animateCounterDisplay(targetCount) {
+    if (scanProgress.animationFrameId !== null) {
+        cancelAnimationFrame(scanProgress.animationFrameId);
+    }
+
+    const startTime = Date.now();
+    const duration = 300;
+
+    const animate = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        scanProgress.displayCount = Math.round(scanProgress.displayCount + (targetCount - scanProgress.displayCount) * progress);
+
+        if (directoryDisplay && scanProgress.isScanning) {
+            directoryDisplay.innerHTML = `正在读取目录...<br>已发现 ${scanProgress.displayCount} 个项目`;
+        }
+
+        if (progress < 1) {
+            scanProgress.animationFrameId = requestAnimationFrame(animate);
+        } else {
+            scanProgress.animationFrameId = null;
+        }
+    };
+
+    scanProgress.animationFrameId = requestAnimationFrame(animate);
+}
+
+async function handleDirectorySelected(folderName, entriesPromiseFunc) {
+    if (dropHint) {
+        dropHint.classList.add('hidden');
+    }
+    
+    folderEntries = null;
+    selectedDirectory = {
+        name: folderName,
+        entriesPromise: entriesPromiseFunc
+    };
+
+    if (directoryDisplay) {
+        directoryDisplay.innerHTML = `已选择：${folderName}`;
+    }
+    
+    if (generateBtn) {
+        generateBtn.disabled = false;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const script = document.createElement('script');
     script.src = '/js/highlight.min.js';
@@ -70,7 +142,32 @@ document.addEventListener('DOMContentLoaded', () => {
 if (dropArea) {
     dropArea.addEventListener('click', async () => {
         if (hasNeutralinoFolderDialogApi()) {
-            await selectDirectoryWithNativeDialog();
+            try {
+                await neutralinoInitPromise;
+                if (!isNativeFolderDialogAvailable()) {
+                    if (directoryInput) {
+                        directoryInput.click();
+                    }
+                    return;
+                }
+
+                const selectedPath = await Neutralino.os.showFolderDialog('选择文件夹');
+                if (!selectedPath) {
+                    return;
+                }
+
+                const folderName = getFolderNameFromPath(selectedPath);
+                const entriesPromiseFunc = (config) => scanDirectoryByPath(selectedPath, '', [], config);
+                await handleDirectorySelected(folderName, entriesPromiseFunc);
+            } catch (error) {
+                if (directoryDisplay) {
+                    directoryDisplay.textContent = '读取目录失败，请尝试其他目录';
+                }
+                if (generateBtn) {
+                    generateBtn.disabled = true;
+                }
+                console.error('选择目录失败:', error);
+            }
             return;
         }
 
@@ -114,15 +211,14 @@ if (dropArea) {
             return;
         }
 
-        selectedDirectory = {
-            name: entry.name,
-            entry
+        const folderName = entry.name;
+        const entriesPromiseFunc = async (config) => {
+            const entries = [];
+            await scanDirectoryEntry(entry, '', entries, config);
+            return entries;
         };
-        folderEntries = null;
 
-        updateDirectoryDisplay(entry.name);
-        rootNameInput.placeholder = entry.name;
-        generateBtn.disabled = false;
+        await handleDirectorySelected(folderName, entriesPromiseFunc);
     });
 }
 
@@ -132,6 +228,25 @@ if (directoryInput) {
 
 if (generateBtn) {
     generateBtn.addEventListener('click', generateDirectoryStructure);
+}
+
+// 监听影响扫描的配置项改变
+if (directoriesOnly) {
+    directoriesOnly.addEventListener('change', () => {
+        folderEntries = null; // 清空缓存
+    });
+}
+
+if (maxDepthInput) {
+    maxDepthInput.addEventListener('change', () => {
+        folderEntries = null;
+    });
+}
+
+if (ignorePatterns) {
+    ignorePatterns.addEventListener('input', () => {
+        folderEntries = null;
+    });
 }
 
 if (copyBtn) {
@@ -158,52 +273,6 @@ function isNativeFolderDialogAvailable() {
     return neutralinoReady && hasNeutralinoFolderDialogApi();
 }
 
-async function selectDirectoryWithNativeDialog() {
-    try {
-        await neutralinoInitPromise;
-        if (!isNativeFolderDialogAvailable()) {
-            if (directoryInput) {
-                directoryInput.click();
-            }
-            return;
-        }
-
-        const selectedPath = await Neutralino.os.showFolderDialog('选择文件夹');
-        if (!selectedPath) {
-            return;
-        }
-
-        if (dropHint) {
-            dropHint.classList.add('hidden');
-        }
-        if (directoryDisplay) {
-            directoryDisplay.textContent = '正在读取目录...';
-        }
-        if (generateBtn) {
-            generateBtn.disabled = true;
-        }
-
-        const folderName = getFolderNameFromPath(selectedPath);
-        selectedDirectory = {
-            name: folderName,
-            path: selectedPath
-        };
-        folderEntries = await scanDirectoryByPath(selectedPath);
-
-        updateDirectoryDisplay(folderName);
-        rootNameInput.placeholder = folderName;
-        generateBtn.disabled = false;
-    } catch (error) {
-        if (directoryDisplay) {
-            directoryDisplay.textContent = '读取目录失败，请尝试其他目录';
-        }
-        if (generateBtn) {
-            generateBtn.disabled = true;
-        }
-        console.error('选择目录失败:', error);
-    }
-}
-
 function getFolderNameFromPath(path) {
     const trimmed = path.replace(/[\\/]+$/, '');
     const parts = trimmed.split(/[\\/]/).filter(Boolean);
@@ -216,7 +285,17 @@ function joinPath(basePath, childName) {
     return `${normalizedBase}${separator}${childName}`;
 }
 
-async function scanDirectoryByPath(absolutePath, relativeBase = '', result = []) {
+async function scanDirectoryByPath(absolutePath, relativeBase = '', result = [], config = {}, lastUpdateTime = 0) {
+    const maxDepth = config.maxDepth || 999999;
+    const ignoreList = config.ignoreList || [];
+    const directoriesOnly = config.directoriesOnly || false;
+
+    // 计算当前深度
+    const currentDepth = (relativeBase.match(/\//g) || []).length + 1;
+    if (currentDepth > maxDepth) {
+        return result;
+    }
+
     let items = [];
 
     try {
@@ -238,17 +317,46 @@ async function scanDirectoryByPath(absolutePath, relativeBase = '', result = [])
         const itemType = String(item.type || '').toUpperCase();
         const relativePath = relativeBase ? `${relativeBase}/${entryName}` : entryName;
 
+        // 检查忽略规则
+        if (ignoreList.some((pattern) => pattern.test(relativePath))) {
+            continue;
+        }
+
         if (itemType === 'DIRECTORY') {
             result.push({ path: relativePath, type: 'dir' });
-            await scanDirectoryByPath(joinPath(absolutePath, entryName), relativePath, result);
+            scanProgress.count++;
+            
+            const now = Date.now();
+            if (now - lastUpdateTime > 100) {
+                animateCounterDisplay(scanProgress.count);
+                lastUpdateTime = now;
+                await new Promise(resolve => setTimeout(resolve, 0));
+            }
+
+            if (currentDepth < maxDepth) {
+                await scanDirectoryByPath(joinPath(absolutePath, entryName), relativePath, result, config, lastUpdateTime);
+            }
+            continue;
+        }
+
+        if (directoriesOnly) {
             continue;
         }
 
         result.push({ path: relativePath, type: 'file' });
+        scanProgress.count++;
+        
+        const now = Date.now();
+        if (now - lastUpdateTime > 100) {
+            animateCounterDisplay(scanProgress.count);
+            lastUpdateTime = now;
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
     }
 
     return result;
 }
+
 function handleDirectorySelection(event) {
     const files = event.target.files;
     if (!files || files.length === 0) {
@@ -258,23 +366,13 @@ function handleDirectorySelection(event) {
     const folderPath = files[0].webkitRelativePath;
     const folderName = folderPath.split('/')[0];
 
-    selectedDirectory = { name: folderName };
-    folderEntries = buildEntriesFromFiles(files, folderName);
+    const entriesPromiseFunc = (config) => {
+        const entries = buildEntriesFromFiles(files, folderName, config);
+        return Promise.resolve(entries);
+    };
 
-    updateDirectoryDisplay(folderName);
-    rootNameInput.placeholder = folderName;
-    generateBtn.disabled = false;
-
+    handleDirectorySelected(folderName, entriesPromiseFunc);
     event.target.value = '';
-}
-
-function updateDirectoryDisplay(folderName) {
-    if (dropHint) {
-        dropHint.classList.add('hidden');
-    }
-    if (directoryDisplay) {
-        directoryDisplay.textContent = `已选择：${folderName}`;
-    }
 }
 
 async function generateDirectoryStructure() {
@@ -283,34 +381,85 @@ async function generateDirectoryStructure() {
         return;
     }
 
-    const rootName = rootNameInput.value.trim() || selectedDirectory.name;
-    const ignoreList = parseIgnorePatterns(ignorePatterns.value);
-    const comments = parseComments(commentsArea.value);
+    // 读取当前配置值
+    const newConfig = {
+        includeEmpty: includeEmpty.checked,
+        directoriesOnly: directoriesOnly.checked,
+        maxDepth: Math.max(1, Number.parseInt(maxDepthInput.value, 10) || 10),
+        ignorePatterns: ignorePatterns.value
+    };
+
+    // 检查影响扫描的配置是否改变
+    const newScanConfig = {
+        directoriesOnly: newConfig.directoriesOnly,
+        maxDepth: newConfig.maxDepth,
+        ignorePatterns: newConfig.ignorePatterns
+    };
+
+    const scanConfigChanged = JSON.stringify(scanConfig) !== JSON.stringify(newScanConfig);
+    
+    currentConfig = newConfig;
+    scanConfig = newScanConfig;
+
+    if (generateBtn) {
+        generateBtn.disabled = true;
+    }
 
     try {
-        let entries = folderEntries;
+        if (scanConfigChanged || !folderEntries) {
+            if (directoryDisplay) {
+                directoryDisplay.textContent = `正在读取目录...已发现 0 个项目`;
+            }
 
-        if (selectedDirectory.entry) {
-            entries = [];
-            await scanDirectoryEntry(selectedDirectory.entry, '', entries);
-            folderEntries = entries;
+            scanProgress.count = 0;
+            scanProgress.displayCount = 0;
+            scanProgress.isScanning = true;
+
+            try {
+                // 构建扫描配置对象
+                const ignoreList = parseIgnorePatterns(newConfig.ignorePatterns);
+                const config = {
+                    maxDepth: newConfig.maxDepth,
+                    ignoreList: ignoreList,
+                    directoriesOnly: newConfig.directoriesOnly
+                };
+
+                folderEntries = await selectedDirectory.entriesPromise(config);
+                scanProgress.isScanning = false;
+                lastScanConfig = { ...newScanConfig };
+                
+                if (directoryDisplay) {
+                    directoryDisplay.innerHTML = `已选择：${selectedDirectory.name}<br>${folderEntries.length}个项目`;
+                }
+            } catch (error) {
+                scanProgress.isScanning = false;
+                if (directoryDisplay) {
+                    directoryDisplay.textContent = '读取目录失败，请尝试其他目录';
+                }
+                if (generateBtn) {
+                    generateBtn.disabled = false;
+                }
+                console.error('读取目录失败:', error);
+                return;
+            }
         }
 
-        if (!entries || entries.length === 0) {
+        const rootName = rootNameInput.value.trim() || selectedDirectory.name;
+        const comments = parseComments(commentsArea.value);
+
+        if (!folderEntries || folderEntries.length === 0) {
             preview.textContent = `${rootName}\n`;
+            if (copyBtn) {
+                copyBtn.disabled = false;
+            }
+            if (generateBtn) {
+                generateBtn.disabled = false;
+            }
             return;
         }
 
-        const filteredEntries = entries.filter((entry) => {
-            if (directoriesOnly.checked && entry.type === 'file') {
-                return false;
-            }
-            return !ignoreList.some((pattern) => pattern.test(entry.path));
-        });
-
-        const tree = buildDirectoryTree(filteredEntries, rootName, comments);
-        const maxDepth = Number.parseInt(maxDepthInput.value, 10) || 10;
-        const treeText = renderTree(tree, includeEmpty.checked, maxDepth);
+        const tree = buildDirectoryTree(folderEntries, rootName, comments);
+        const treeText = renderTree(tree, currentConfig.includeEmpty, currentConfig.maxDepth);
 
         preview.textContent = treeText;
 
@@ -319,6 +468,10 @@ async function generateDirectoryStructure() {
         }
     } catch (error) {
         console.error('生成目录结构失败:', error);
+    } finally {
+        if (generateBtn) {
+            generateBtn.disabled = false;
+        }
     }
 }
 
@@ -358,9 +511,12 @@ function parseComments(text) {
     return comments;
 }
 
-function buildEntriesFromFiles(files, folderName) {
+function buildEntriesFromFiles(files, folderName, config = {}) {
     const entries = [];
     const dirSet = new Set();
+    const maxDepth = config.maxDepth || 999999;
+    const ignoreList = config.ignoreList || [];
+    const directoriesOnly = config.directoriesOnly || false;
 
     for (const file of files) {
         const relativePath = file.webkitRelativePath.slice(folderName.length + 1);
@@ -368,14 +524,37 @@ function buildEntriesFromFiles(files, folderName) {
             continue;
         }
 
-        entries.push({
-            path: relativePath,
-            type: 'file'
-        });
+        // 检查深度限制
+        const depth = (relativePath.match(/\//g) || []).length + 1;
+        if (depth > maxDepth) {
+            continue;
+        }
+
+        // 检查忽略规则
+        if (ignoreList.some((pattern) => pattern.test(relativePath))) {
+            continue;
+        }
+
+        if (!directoriesOnly) {
+            entries.push({
+                path: relativePath,
+                type: 'file'
+            });
+        }
 
         const parts = relativePath.split('/');
         for (let i = 0; i < parts.length - 1; i += 1) {
             const dirPath = parts.slice(0, i + 1).join('/');
+            
+            const dirDepth = (dirPath.match(/\//g) || []).length + 1;
+            if (dirDepth > maxDepth) {
+                continue;
+            }
+
+            if (ignoreList.some((pattern) => pattern.test(dirPath))) {
+                continue;
+            }
+
             if (!dirSet.has(dirPath)) {
                 dirSet.add(dirPath);
                 entries.push({
@@ -389,8 +568,18 @@ function buildEntriesFromFiles(files, folderName) {
     return entries;
 }
 
-async function scanDirectoryEntry(entry, basePath, result) {
+async function scanDirectoryEntry(entry, basePath, result, config = {}, lastUpdateTime = 0) {
     if (!entry.isDirectory) {
+        return;
+    }
+
+    const maxDepth = config.maxDepth || 999999;
+    const ignoreList = config.ignoreList || [];
+    const directoriesOnly = config.directoriesOnly || false;
+
+    // 计算当前深度
+    const currentDepth = (basePath.match(/\//g) || []).length + 1;
+    if (currentDepth > maxDepth) {
         return;
     }
 
@@ -411,11 +600,38 @@ async function scanDirectoryEntry(entry, basePath, result) {
 
     for (const item of allEntries) {
         const itemPath = basePath ? `${basePath}/${item.name}` : item.name;
+        
+        // 检查忽略规则
+        if (ignoreList.some((pattern) => pattern.test(itemPath))) {
+            continue;
+        }
+
         if (item.isDirectory) {
             result.push({ path: itemPath, type: 'dir' });
-            await scanDirectoryEntry(item, itemPath, result);
+            scanProgress.count++;
+            
+            const now = Date.now();
+            if (now - lastUpdateTime > 100) {
+                animateCounterDisplay(scanProgress.count);
+                lastUpdateTime = now;
+                await new Promise(resolve => setTimeout(resolve, 0));
+            }
+
+            if (currentDepth < maxDepth) {
+                await scanDirectoryEntry(item, itemPath, result, config, lastUpdateTime);
+            }
         } else {
-            result.push({ path: itemPath, type: 'file' });
+            if (!directoriesOnly) {
+                result.push({ path: itemPath, type: 'file' });
+                scanProgress.count++;
+                
+                const now = Date.now();
+                if (now - lastUpdateTime > 100) {
+                    animateCounterDisplay(scanProgress.count);
+                    lastUpdateTime = now;
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+            }
         }
     }
 }
@@ -501,7 +717,3 @@ function sortNodes(nodes) {
         return a.name.localeCompare(b.name);
     });
 }
-
-
-
-
