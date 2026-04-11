@@ -50,19 +50,29 @@ src/components # 组件目录"></textarea>
                             </div>
                             
                             <div class="form-group" style="height: 40px;">
-                                <div class="checkbox-group">
+                                <div class="checkbox-group-row">
                                     <label class="checkbox-label">
                                         <input type="checkbox" id="includeEmpty" checked>
                                         <span>包含空目录</span>
                                     </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="onlyEmpty">
+                                        <span>仅包括空目录</span>
+                                    </label>
                                 </div>
                             </div>
                             <div class="form-group" style="height: 40px;">
-                                <div class="checkbox-group">
+                                <div class="checkbox-group-row">
                                     <label class="checkbox-label">
                                         <input type="checkbox" id="directoriesOnly">
-                                        <span>只读取目录（不包含文件）</span>
+                                        <span>只读取目录</span>
                                     </label>
+                                    <!-- 
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" id="includeLinkSymbols" checked>
+                                            <span>包括软连接</span>
+                                        </label> 
+                                    -->
                                 </div>
                             </div>
                             <div class="form-group" style="height: 40px;">

@@ -9,7 +9,9 @@ const rootNameInput = document.getElementById('rootName');
 const ignorePatterns = document.getElementById('ignorePatterns');
 const commentsArea = document.getElementById('commentsArea');
 const includeEmpty = document.getElementById('includeEmpty');
+const onlyEmpty = document.getElementById('onlyEmpty');
 const directoriesOnly = document.getElementById('directoriesOnly');
+const includeLinkSymbols = document.getElementById('includeLinkSymbols');
 const maxDepthInput = document.getElementById('maxDepth');
 
 let selectedDirectory = null;
@@ -27,7 +29,9 @@ let scanProgress = {
 // 追踪当前的配置项
 let currentConfig = {
     includeEmpty: false,
+    onlyEmpty: false,
     directoriesOnly: false,
+    includeLinkSymbols: true,
     maxDepth: 10,
     ignorePatterns: ''
 };
@@ -35,6 +39,7 @@ let currentConfig = {
 // 追踪影响扫描的配置
 let scanConfig = {
     directoriesOnly: false,
+    includeLinkSymbols: true,
     maxDepth: 10,
     ignorePatterns: ''
 };
@@ -237,6 +242,23 @@ if (directoriesOnly) {
     });
 }
 
+if (includeLinkSymbols) {
+    includeLinkSymbols.addEventListener('change', () => {
+        folderEntries = null; // 清空缓存
+    });
+}
+
+if (onlyEmpty) {
+    onlyEmpty.addEventListener('change', () => {
+        if (onlyEmpty.checked) {
+            includeEmpty.checked = true;
+            includeEmpty.disabled = true;
+        } else {
+            includeEmpty.disabled = false;
+        }
+    });
+}
+
 if (maxDepthInput) {
     maxDepthInput.addEventListener('change', () => {
         folderEntries = null;
@@ -334,7 +356,11 @@ async function scanDirectoryByPath(absolutePath, relativeBase = '', result = [],
             }
 
             if (currentDepth < maxDepth) {
-                await scanDirectoryByPath(joinPath(absolutePath, entryName), relativePath, result, config, lastUpdateTime);
+                try {
+                    await scanDirectoryByPath(joinPath(absolutePath, entryName), relativePath, result, config, lastUpdateTime);
+                } catch (error) {
+                    console.warn(`无法读取目录: ${relativePath}`, error.message || error);
+                }
             }
             continue;
         }
@@ -383,15 +409,18 @@ async function generateDirectoryStructure() {
 
     // 读取当前配置值
     const newConfig = {
-        includeEmpty: includeEmpty.checked,
-        directoriesOnly: directoriesOnly.checked,
-        maxDepth: Math.max(1, Number.parseInt(maxDepthInput.value, 10) || 10),
-        ignorePatterns: ignorePatterns.value
+        includeEmpty: includeEmpty?.checked || true,
+        onlyEmpty: onlyEmpty?.checked || false,
+        directoriesOnly: directoriesOnly?.checked || false,
+        includeLinkSymbols: includeLinkSymbols?.checked || false,
+        maxDepth: Math.max(1, Number.parseInt(maxDepthInput?.value, 10) || 10),
+        ignorePatterns: ignorePatterns?.value || ''
     };
 
     // 检查影响扫描的配置是否改变
     const newScanConfig = {
         directoriesOnly: newConfig.directoriesOnly,
+        includeLinkSymbols: newConfig.includeLinkSymbols,
         maxDepth: newConfig.maxDepth,
         ignorePatterns: newConfig.ignorePatterns
     };
@@ -459,7 +488,7 @@ async function generateDirectoryStructure() {
         }
 
         const tree = buildDirectoryTree(folderEntries, rootName, comments);
-        const treeText = renderTree(tree, currentConfig.includeEmpty, currentConfig.maxDepth);
+        const treeText = renderTree(tree, currentConfig.includeEmpty, currentConfig.onlyEmpty, currentConfig.maxDepth);
 
         preview.textContent = treeText;
 
@@ -583,13 +612,26 @@ async function scanDirectoryEntry(entry, basePath, result, config = {}, lastUpda
         return;
     }
 
-    const reader = entry.createReader();
+    let reader;
+    try {
+        reader = entry.createReader();
+    } catch (error) {
+        console.warn(`无法创建目录读取器: ${entry.name}`, error);
+        return;
+    }
+
     const allEntries = [];
 
     while (true) {
-        const chunk = await new Promise((resolve, reject) => {
-            reader.readEntries(resolve, reject);
-        });
+        let chunk = [];
+        try {
+            chunk = await new Promise((resolve, reject) => {
+                reader.readEntries(resolve, reject);
+            });
+        } catch (error) {
+            console.warn(`无法读取目录条目: ${entry.name}`, error);
+            break;
+        }
 
         if (!chunk.length) {
             break;
@@ -618,7 +660,11 @@ async function scanDirectoryEntry(entry, basePath, result, config = {}, lastUpda
             }
 
             if (currentDepth < maxDepth) {
-                await scanDirectoryEntry(item, itemPath, result, config, lastUpdateTime);
+                try {
+                    await scanDirectoryEntry(item, itemPath, result, config, lastUpdateTime);
+                } catch (error) {
+                    console.warn(`无法读取子目录: ${itemPath}`, error);
+                }
             }
         } else {
             if (!directoriesOnly) {
@@ -673,35 +719,73 @@ function buildDirectoryTree(entries, rootName, comments) {
     return tree;
 }
 
-function renderTree(tree, includeEmptyDirs, maxDepth) {
+function isEmptyDir(node) {
+    if (node.type === 'file') {
+        return false;
+    }
+    return Object.keys(node.children).length === 0;
+}
+
+function hasEmptyDir(node) {
+    if (node.type === 'file') {
+        return false;
+    }
+    
+    if (isEmptyDir(node)) {
+        return true;
+    }
+    
+    for (const child of Object.values(node.children)) {
+        if (hasEmptyDir(child)) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+function renderTree(tree, includeEmptyDirs, onlyEmpty, maxDepth) {
     const lines = [];
     lines.push(formatNodeLine(tree.name, tree.comment));
 
     const children = sortNodes(Object.values(tree.children));
-    appendTreeLines(children, '', lines, includeEmptyDirs, 1, maxDepth);
+    appendTreeLines(children, '', lines, includeEmptyDirs, onlyEmpty, 1, maxDepth);
 
     return lines.join('\n');
 }
 
-function appendTreeLines(children, indent, lines, includeEmptyDirs, depth, maxDepth) {
+function appendTreeLines(children, indent, lines, includeEmptyDirs, onlyEmpty, depth, maxDepth) {
     if (depth > maxDepth) {
         return;
     }
 
-    children.forEach((child, index) => {
-        const isLast = index === children.length - 1;
+    const visibleChildren = children.filter(child => {
+        if (onlyEmpty) {
+            if (child.type === 'file') {
+                return false;
+            }
+            if (!hasEmptyDir(child)) {
+                return false;
+            }
+        }
+        return true;
+    });
+
+    visibleChildren.forEach((child, index) => {
+        const isLast = index === visibleChildren.length - 1;
         const branch = isLast ? '└── ' : '├── ';
 
         lines.push(`${indent}${branch}${formatNodeLine(child.name, child.comment)}`);
 
         const nextChildren = sortNodes(Object.values(child.children));
         const shouldContinue = nextChildren.length > 0 || (includeEmptyDirs && child.type === 'dir');
+        
         if (!shouldContinue) {
             return;
         }
 
         const nextIndent = `${indent}${isLast ? '    ' : '│   '}`;
-        appendTreeLines(nextChildren, nextIndent, lines, includeEmptyDirs, depth + 1, maxDepth);
+        appendTreeLines(nextChildren, nextIndent, lines, includeEmptyDirs, onlyEmpty, depth + 1, maxDepth);
     });
 }
 
