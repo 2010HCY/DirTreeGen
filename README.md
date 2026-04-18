@@ -28,11 +28,11 @@
 └── README.md
 ```
 
-忽略列表使用正则匹配，例如匹配bin、dist目录的过滤正则规则是：
+忽略列表在1.3.0之后使用Glob 模式匹配，例如匹配bin、dist目录的过滤正则规则是：
 
 ```
-^bin(/|$)
-^dist(/|$)
+bin
+dist
 ```
 
 ## 运行与打包
@@ -71,6 +71,14 @@ Blog地址：[文件目录树生成器 | 静水深流](https://hcyhub.com/编程
 下载地址：[Releases · 2010HCY/DirTreeGen](https://github.com/2010HCY/DirTreeGen/releases)
 
 ### 更新日志
+
+#### 1.3.0
+
+正则使用 Glob 模式
+
+#### 1.2.1
+
+修复仅包括空目录模式下目录树不能收尾的BUG
 
 #### 1.2.0
 

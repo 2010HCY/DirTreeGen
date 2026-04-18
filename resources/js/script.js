@@ -508,12 +508,36 @@ function parseIgnorePatterns(text) {
     return text
         .split('\n')
         .map((line) => line.trim())
-        .filter(Boolean)
+        .filter(line => line && !line.startsWith('#'))
         .map((pattern) => {
             try {
-                return new RegExp(pattern);
+                const isRoot = pattern.startsWith('/');
+                const isDir = pattern.endsWith('/');
+                
+                let cleanPattern = pattern.replace(/^\//, '').replace(/\/$/, '');
+                
+                let escaped = cleanPattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+                
+                escaped = escaped.replace(/\*/g, '.*');
+                escaped = escaped.replace(/\?/g, '.');
+                
+                let finalRegex = '';
+                
+                if (isRoot) {
+                    finalRegex = '^' + escaped;
+                } else {
+                    finalRegex = '(^|/)' + escaped;
+                }
+                
+                if (isDir) {
+                    finalRegex = finalRegex + '/';
+                } else {
+                    finalRegex = finalRegex + '($|/)';
+                }
+                
+                return new RegExp(finalRegex);
             } catch (error) {
-                console.warn(`忽略了无效正则: ${pattern}`);
+                console.warn(`忽略规则转换失败: ${pattern}`);
                 return null;
             }
         })
