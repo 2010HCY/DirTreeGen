@@ -11,7 +11,7 @@
   "tokenSecurity": "one-time",
   "applicationName": "Dir Tree Gen",
   "author": "Ethaniel @ HcyHub",
-  "description": "优雅的目录结构树生成工具",
+  "description": "目录结构树生成工具",
   "copyright": "Copyright © 2026 Ethaniel. All rights reserved.",
   "applicationIcon": "resources/icons/appIcon.png",
   "logging": {
